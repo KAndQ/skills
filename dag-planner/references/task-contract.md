@@ -14,6 +14,8 @@ Task ID 在当前 DAG 内唯一，固定三位数字 T001 至 T999，与文件�
 
 Task status 允许 PLANNED、READY、BLOCKED、IN_PROGRESS、DONE、FAILED、SUPERSEDED。新任务默认 PLANNED，SUPERSEDED 不等于 DONE。Executor 自动更新和 Coordinator 同步规则由 [execution-protocol.md](execution-protocol.md#status-lifecycle) 定义；生成或修订这些规则时再读取并展开。
 
+`status` 表示任务执行与交付进度；报告中的 Verification Result 表示验证结论与覆盖范围。`PASS`、`FAIL`、`PARTIAL` 和 `MANUAL_VERIFICATION_REQUIRED` 均不是合法 Task status，不得写入 front matter 的 `status`。
+
 # Task Schema
 
 每个 Task 的 YAML front matter 至少包含以下字段，正文提供执行细节；重复出现的值必须一致。
@@ -68,12 +70,18 @@ UI 功能背后存在可独立验证的数据状态时，验证数据状态（�
 
 | 结果 | 含义 |
 |---|---|
-| `PASS` | 全部必要自动化验证通过，且没有人工验证项 |
-| `FAIL` | 至少一项必要自动化验证失败 |
+| `PASS` | 全部必要自动化验证通过，且没有未决的必要人工验证项（无人工项或已确认通过） |
+| `FAIL` | 至少一项必要验证实际失败 |
 | `PARTIAL` | 自动化验证通过，但仍有必须人工确认的游戏交互；固定表述 `PARTIAL — Automated checks passed; manual gameplay verification required.` |
 | `MANUAL_VERIFICATION_REQUIRED` | 没有可执行的确定性验证，结论完全依赖人工确认 |
 
-自动化验证通过但存在人工项时不得标记 `FAIL`，也不得宣称交互、视觉或手感已验证；人工项写入交接清单，由开发者在真实环境确认。结果不是 `PASS` 时，Expected Outputs 报告与交接摘要都必须保留该 token 及未决人工清单。
+不得仅因人工项尚未执行而标记 `FAIL`，也不得宣称交互、视觉或手感已验证；人工项写入交接清单，由开发者在真实环境确认。结果不是 `PASS` 时，Expected Outputs 报告与交接摘要都必须保留该 token 及未决人工清单。
+
+## Task Completion Boundary
+
+按本任务契约判定完成：声明的实现、产物、必要自动化验证与报告齐全，且人工项只要求交接时，Task status 应为 `DONE`；Verification Result 仍可为 `PARTIAL` 或 `MANUAL_VERIFICATION_REQUIRED`。人工清单必须写明负责人或后续节点、步骤与预期表现。下游仍须核对所需产物和验收证据，不因上游报告存在待交接人工项而拒绝已满足的输入。
+
+如果人工确认明确属于当前任务的必要验收门禁，未确认前不得置 `DONE`；记录尚未完成的条件，缺少外部条件时使用 `BLOCKED`。必要自动化未执行或实际失败也不能通过交接人工清单转为完成。规划时将这类人工验收安排为独立验证节点，让真正需要其结果的任务依赖它；不能要求上游等待下游执行后才能完成自身。
 
 # Dependency Contracts
 

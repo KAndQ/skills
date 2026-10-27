@@ -31,7 +31,8 @@ to assume those roles.
 需要扩大写入范围时报告原因，由 Planner 修订后继续，不静默扩大范围。
 执行开始时自动将本任务 front matter 的 status 更新为 IN_PROGRESS。
 结束前持久化声明的产物与验证报告；research 任务必须写入结论文件。
-验收、验证和交接产物齐全后（validation 任务含 Automated Verification、Manual Verification 与 Verification Result），自动将本任务 status 更新为 DONE，不等待用户提醒；自动化通过但存在人工项时保留 `PARTIAL` 或 `MANUAL_VERIFICATION_REQUIRED`，不标记 FAIL。
+本任务产物、必要自动化验证、验收与交接报告齐全后，自动将 status 更新为 DONE，不等待用户提醒；validation 报告含 Automated Verification、Manual Verification 与 Verification Result。
+人工项仅要求交接时，完成清单交接即可 DONE，报告中的 Verification Result 保留 PARTIAL 或 MANUAL_VERIFICATION_REQUIRED；这些 token 不得写入 status。人工确认若是当前任务明确要求的完成门禁，未确认前不得 DONE。
 受阻或执行/验证失败时分别更新为 BLOCKED 或 FAILED，记录原因与恢复条件，不标记 DONE。
 仅可修改本任务文档的 status、执行报告与产物引用，不改写任务契约。
 完成本任务后输出交接报告并停止；不要修改全局 DAG 清单或启动后续任务。
@@ -70,12 +71,14 @@ Complete only T002. Do not implement sibling tasks.
 Automatically set this task's status to IN_PROGRESS when execution starts.
 Persist declared outputs and verification evidence; research tasks must write
 their declared conclusion file for dependent tasks to read.
-Before stopping, automatically update this task's status to DONE only when
-acceptance, verification and handoff are complete (validation tasks include
-the Verification Result and the manual verification list); keep PARTIAL or
-MANUAL_VERIFICATION_REQUIRED when automated checks pass but manual items
-remain. Otherwise record BLOCKED or FAILED as applicable, with the reason
-and recovery conditions.
+Before stopping, automatically set this task's status to DONE when its outputs,
+required automated checks, acceptance and handoff are complete. Validation
+reports include the Verification Result and the manual verification list.
+If manual items require handoff only, completing that handoff allows DONE;
+keep PARTIAL or MANUAL_VERIFICATION_REQUIRED in the report's Verification
+Result, never in status. If manual confirmation is an explicit completion
+gate for this task, do not set DONE before it is satisfied. Record BLOCKED or
+FAILED as applicable, with the reason and recovery conditions.
 Only maintain this task's status, execution report and artifact references;
 do not rewrite its contract or edit the shared DAG manifest.
 Report changed files, results, risks, blockers and integration notes, then stop.
@@ -113,7 +116,7 @@ worktree 仅隔离文件编辑，不消除语义冲突、共享服务或迁移�
 
 新 Task 默认 PLANNED。用户、Executor 或协调者在依赖 DONE、产物可用、scope 已协调且契约已确定后置 READY，再进入 IN_PROGRESS；验收和报告齐全后才能 DONE。缺少外部条件用 BLOCKED，实际执行或验证失败用 FAILED，均记录原因与恢复条件。SUPERSEDED 不等于 DONE。
 
-执行者必须自动维护自身 Task front matter 的 `status`：开始执行置 IN_PROGRESS；产物、报告和必要验证全部完成后，在最终回复前置 DONE，无需用户另行提醒。必要自动化验证未执行时保留未完成状态并写明阻塞条件；自动化验证通过但存在人工确认项时按 Validation Task Contract 记录结果并交接，不属于阻塞或失败。失败或受阻按上述规则更新。状态更新仅限自身任务，不修改兄弟任务或契约字段。
+执行者必须自动维护自身 Task front matter 的 `status`：开始执行置 IN_PROGRESS；按 [Task Completion Boundary](task-contract.md#task-completion-boundary) 完成本任务产物、必要验证与报告后，在最终回复前置 DONE，无需用户另行提醒。仅待下游或开发者执行的人工交接项不阻止 DONE，验证结果保留在报告中；明确属于当前任务的人工完成门禁仍须满足。必要自动化未执行或实际失败时不能 DONE。失败或受阻按上述规则更新。状态更新仅限自身任务，不修改兄弟任务或契约字段。
 
 共享 DAG.md 的执行状态和派生索引由一个协调者在接收任务交接后自动串行同步，不等待用户提醒。多个 Executor 各自写入本任务文档并返回报告，避免同时写全局清单；独立 worktree 的交接必须包含状态、报告及研究结论文件。单任务执行者未兼任协调者时在报告中注明待同步，由协调者完成全局更新。全局 DoD 与集成验证通过后，协调者才能把 DAG 置 DONE；存在未决人工验证项时，完成摘要保留对应 token 与人工清单，不宣称游戏交互、视觉效果或手感已验证。
 

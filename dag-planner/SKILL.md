@@ -178,6 +178,8 @@ research Task 的 `research/Txxx-short-slug.md` 结论文件由未来执行者�
 
 最终结果使用 `PASS`、`FAIL`、`PARTIAL` 或 `MANUAL_VERIFICATION_REQUIRED`，语义与固定表述见 [task-contract.md](references/task-contract.md#verification-result)。自动化验证通过但仍存在必须人工确认的游戏交互时不得标记 `FAIL`，按 `PARTIAL — Automated checks passed; manual gameplay verification required.` 记录并交接人工步骤。
 
+这些 token 仅表示报告中的验证结果，不是 Task 或 DAG 的 `status`。任务完成与人工验证交接的边界见 [Task Completion Boundary](references/task-contract.md#task-completion-boundary)；不得把交给下游验证的人工项作为上游 DONE 的条件，造成隐含的循环依赖。
+
 不得因为禁止自动浏览器验证而弱化验证：UI 功能背后存在可独立验证的数据状态时，验证数据状态（调用对应逻辑，断言配置或状态变化），而不是驱动 UI（启动浏览器，找按钮，点击，看界面）。数据断言、invariant、schema validation、deterministic test、输入输出对比、before/after diff、统计结果校验、边界值、空数据、重复数据与 ID/引用完整性检查仍须尽可能补齐。
 
 # Parallel / Write Scope Conflict Analysis
@@ -206,7 +208,7 @@ research Task 的 `research/Txxx-short-slug.md` 结论文件由未来执行者�
 9. 关键路径与依赖一致。有耗时依据时用加权最长路径；没有时用最长依赖链并注明“结构关键路径，不代表工期”，列出并列路径。
 10. 没有高影响未决问题被藏在 READY 实现节点中；没有将推荐的 Agent、命令或尚未生成的产物当成已存在。
 11. research 节点声明独立结论文件、写入所有者及内容要求；依赖任务的 inputs/read_scope 指向该文件，并要求执行前读取。
-12. 每个 Task 的 write_scope 包含自身文档且仅允许状态/报告维护；执行契约要求产物与验证落盘后自动更新 status，共享 DAG 状态由协调者串行同步。
+12. 每个 Task 的 write_scope 包含自身文档且仅允许状态/报告维护；执行契约要求产物与验证落盘后自动更新合法的 status，验证结果 token 不写入状态字段；人工验收归属明确，不形成依赖下游才能完成上游的门禁，共享 DAG 状态由协调者串行同步。
 
 自检失败先修订再交付。仅凭 Mermaid 可渲染或 Markdown 格式正确，不能判定 DAG 可执行。
 

@@ -1,11 +1,11 @@
 ---
 name: dag-planner
-description: 分析软件开发需求并输出 .dag 下可版本管理的 DAG 任务文档，供其他 LLM Agent 独立执行。用于需求分析、实现方案、创建或修订 DAG。通常在 Plan Mode 分析，点击“实现”后仅将 DAG 文档落盘并校验，不执行业务实现或启动任务 Agent。
+description: 分析软件需求，以自适应上下文策略创建或修订 .dag 执行契约，按实际容量、任务边界与验收决定粒度，支持 Checkpoint 和 Split Request 重规划。通常在 Plan Mode 分析，点击“实现”后仅落盘并校验文档，不执行业务任务或启动 Worker。
 ---
 
 # Name
 
-`dag-planner` — Planner / Architect / DAG Generator。
+`dag-planner` — Adaptive Context Planner / Architect / DAG Generator。
 
 # Purpose
 
@@ -73,6 +73,7 @@ The planner describes future implementation work; it does not perform that work.
 - 创建或更新 DAG.md、CONTEXT.md 及目录结构时，必须读取并遵循 [references/dag-format.md](references/dag-format.md)；生成 DAG 文档时以该格式为准。
 - 创建或更新 Task 契约时，必须读取并遵循 [references/task-contract.md](references/task-contract.md)，包括 schema、完整正文结构与 research 产物约定。
 - 需要生成或修订 Executor handoff、execution_mode、status lifecycle、worktree 或 integration 协议时，读取 [references/execution-protocol.md](references/execution-protocol.md)，将适用规则编码进生成文档。读取该文件不会给当前 Planner 分配执行职责。
+- 分析上下文成本、实际容量、拆分或 Context Split Request 时，读取 [references/context-planning.md](references/context-planning.md)；将动态 Loading Plan、可靠依据、未知项、真实约束与交接规则展开进相关 Task，不要求 Worker 加载整个技能。
 
 生成的 Task 必须自包含，不能只让未来执行者引用技能 reference 或原始聊天来补齐契约。
 
@@ -106,7 +107,7 @@ research Task 的 `research/Txxx-short-slug.md` 结论文件由未来执行者�
 1. 识别需求及是否属于已有 DAG，整理已确认项、假设、未知、约束和非目标。
 2. 做针对性的只读调查，消除可从仓库查明的问题；仅向用户确认影响架构、兼容或范围的剩余歧义。
 3. 补齐相关架构、生命周期、数据流、共享修改点及真实验证入口。
-4. 明确必要接口和所有权，按交付结果拆 Task，定义每条依赖的输入输出契约。
+4. 明确接口和所有权，按可交付结果拆 Task，定义依赖契约；分析六类上下文成本并区分峰值/累计，优先按需加载，根据耦合、验收边界和实际容量风险决定是否拆分，不按自定 Token 门槛切任务。
 5. 分析依赖、写入及语义冲突，确定执行模式、并行组、关键路径和集成节点。
 6. 宿主允许写入时按 Final Plan Contract 物化同一 DAG 目录并自检，报告入口后停止；仍在 Plan Mode 时只交付待物化的内容与路径。
 
@@ -130,7 +131,7 @@ research Task 的 `research/Txxx-short-slug.md` 结论文件由未来执行者�
 
 # Task Decomposition
 
-每个实现任务应有一个明确目标、有限修改范围、明确输出和可验证结果，能在一个独立 Session 内完成。按模块所有权或独立行为拆分，不按“加字段、加 import、加 if”拆分。
+每个实现任务应有明确目标、有限范围、明确输出与可验证结果，能由只处理该 Task 的独立 Session 执行/验收，必要时用持久化 Checkpoint 接续。按所有权或独立行为拆分，不为单 Session 的自定 Token 目标强拆耦合任务，也不按“加字段、加 import、加 if”拆分。
 
 任务的验收与验证条目按 [Verification Strategy](#verification-strategy) 设计：优先确定性验证，游戏交互与视觉项写成可交接的人工验证清单。
 
@@ -142,6 +143,16 @@ research Task 的 `research/Txxx-short-slug.md` 结论文件由未来执行者�
 - research Task 必须声明并由未来执行者持久化独立结论文件；下游共同消费同一版本，不能用聊天结论替代。完整契约见 [task-contract.md](references/task-contract.md#research-task-contract)。
 - validation 与承担最终验收的 integration Task 必须按 [task-contract.md](references/task-contract.md#validation-task-contract) 区分 Automated Verification、Manual Verification 与 Verification Result，不要求执行者启动 GUI 环境完成游戏交互验证。
 - 多个并行实现分支须有明确 integration 节点；已有外部机制完全覆盖时才可省略，并记录机制及负责人。集成任务依赖全部待集成产物，其 write_scope 覆盖实际合入的业务文件和有限集成测试。
+
+# Adaptive Context Planning
+
+分析固定指令、源码阅读、依赖输入、工具输出、工作与交付六类成本，区分单次峰值与累计消耗。有依据才提供 Token 数字；允许未知值、定性风险与依据。新/旧 Task 均不强制填写数值或新的 Context 字段，不为技能升级重写历史 DAG。
+
+遵守当前模型/宿主实际窗口、输入/输出限制、可验证剩余容量及用户/平台明确上限；核对来源与适用性。旧 target/soft/hard/reserve 及 model_context_tokens 缺少可信来源时只作估算提示，不是执行门禁；不采用任何通用数值或百分比。未知容量不等于无限，也不因缺遥测永久阻塞。
+
+Context Loading Plan 是动态策略：按符号读取、复用版本化接口摘要、选读工具输出、保留验证证据，并说明扩读/Checkpoint 风险条件。Worker 可在原 Scope/验收内调整顺序和片段；小型任务可一次完成，常规任务按需加载，大型任务先看模块/验收边界，高耦合任务不为降低估值强拆。只有优化后仍有充分实际不足证据才阻塞；粒度、兼容 schema 与判定见 [context-planning.md](references/context-planning.md)。
+
+Worker 在合理优化后仍有可信容量/剩余工作不足证据时沿用 BLOCKED、CONTEXT_BUDGET_EXCEEDED、Checkpoint 和 Split Request。保留原结果与历史；运行中契约先由 Coordinator 停止交接。可交接同一 Task 到新 Session，不必拆分；不能提高配置绕过真实约束或假定自动续跑。交接见 [execution-protocol.md](references/execution-protocol.md#context-budget-blocker-and-split-request)。
 
 # Dependency Contracts
 
@@ -193,7 +204,7 @@ research Task 的 `research/Txxx-short-slug.md` 结论文件由未来执行者�
 
 # DAG Validation
 
-写完或每次修订后执行结构检查和语义自检。优先使用仓库已有验证工具；没有工具时用只读临时脚本解析 YAML、执行拓扑排序并计算后继闭包，另做语义审查，不声称自动检查能判断全部架构风险。
+写完或每次修订后执行结构检查和语义自检。使用技能自带的只读 `scripts/validate_dag.mjs` 检查上下文、依赖和修订保护；修订前保留仓库外的只读快照，以 `--before` 对比。安装、测试、检查命令及自动化边界见 [context-planning.md](references/context-planning.md#repeatable-validation)。继续完成以下语义自检，不声称脚本能判断全部架构风险。
 
 必须通过：
 
@@ -209,6 +220,7 @@ research Task 的 `research/Txxx-short-slug.md` 结论文件由未来执行者�
 10. 没有高影响未决问题被藏在 READY 实现节点中；没有将推荐的 Agent、命令或尚未生成的产物当成已存在。
 11. research 节点声明独立结论文件、写入所有者及内容要求；依赖任务的 inputs/read_scope 指向该文件，并要求执行前读取。
 12. 每个 Task 的 write_scope 包含自身文档且仅允许状态/报告维护；执行契约要求产物与验证落盘后自动更新合法的 status，验证结果 token 不写入状态字段；人工验收归属明确，不形成依赖下游才能完成上游的门禁，共享 DAG 状态由协调者串行同步。
+13. 六类成本、峰值/累计概念与动态加载策略有依据或明确未知；数值不是 READY 门槛。真实容量/明确约束有可信来源，Context 阻塞须有优化后仍不足的证据；拆分保留原验收/Checkpoint，考虑重复上下文和累计成本。新旧 Task 不因缺数字失效。
 
 自检失败先修订再交付。仅凭 Mermaid 可渲染或 Markdown 格式正确，不能判定 DAG 可执行。
 
@@ -224,6 +236,8 @@ research Task 的 `research/Txxx-short-slug.md` 结论文件由未来执行者�
 
 每次影响执行的修订递增 revision，记录原因和受影响任务/产物；纯文字润色或状态同步不增加执行修订。变更记录格式见 [dag-format.md](references/dag-format.md#change-log-rules)。Planner 负责重规划契约，不接管执行阶段协调。
 
+Context Split Request 也沿用这些规则：保留原 Task ID、状态历史和报告；子任务从历史最大编号后分配，新增任务为 PLANNED。选择保留原任务承担剩余验收，或交接确认后将其标为 SUPERSEDED 并改写活跃依赖；不得把 BLOCKED/DONE 批量改回 PLANNED。修订的检查点、验收映射和下游闭包记录见 [execution-protocol.md](references/execution-protocol.md#planner-split-resolution)。
+
 # Failure Handling
 
 | 情况 | 操作 |
@@ -233,6 +247,7 @@ research Task 的 `research/Txxx-short-slug.md` 结论文件由未来执行者�
 | 循环依赖 | 重划职责、合并循环内耦合任务或明确契约先决节点，不能删除必要依赖伪造 DAG |
 | scope 冲突 | 合并、串行，或声明有条件 worktree 隔离与集成责任 |
 | 任务过大或过小 | 按可独立验收结果拆分，或合并紧耦合小任务 |
+| 上下文风险上升 | 先缩小读取、去重与分阶段验证；优化后有可信实际不足证据才 BLOCKED + Checkpoint/Split Request；估值超旧门槛仅复核，不绕过真实约束或启动子 Worker |
 | 依赖输出缺失 | 阻止下游 READY，写明生产者、缺失产物和解除条件 |
 | 仓库与规格不符 | 记录 discrepancy，调查后更新原 DAG 和受影响后继，不让 Executor 自行改架构 |
 | 构建环境不可用 | 记录真实前提和未执行状态；无法发现命令时要求使用后续仓库调查确认的现有命令，并阻止相关验证任务假报完成 |

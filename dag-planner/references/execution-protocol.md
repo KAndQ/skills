@@ -24,6 +24,7 @@ to assume those roles.
 ```text
 你是整个 DAG 中的一个执行节点。只完成当前 Task，不实现兄弟任务，不重新规划整个功能。
 先读取本任务及适用的仓库指令；按需读取同一 DAG 的 DAG.md、CONTEXT.md。
+按动态 Context Loading Plan 读取；可在原 Scope/验收内调整顺序和片段。核对当前真实模型/宿主限制与明确用户上限，未知则保守按需载入并记录风险；缺数字不阻塞，无来源的旧 context_budget 数值只是提示。
 依赖必须已完成，且指定产物在当前工作基线上可用，才能开始修改。
 遵守 Write Scope、Constraints、Forbidden Changes、Acceptance Criteria 和 Verification。
 验证遵守 Validation Task Contract：优先执行确定性验证，不启动 GUI 环境替代确定性验证；无法确定性验证的游戏交互写入人工验证清单。
@@ -34,6 +35,7 @@ to assume those roles.
 本任务产物、必要自动化验证、验收与交接报告齐全后，自动将 status 更新为 DONE，不等待用户提醒；validation 报告含 Automated Verification、Manual Verification 与 Verification Result。
 人工项仅要求交接时，完成清单交接即可 DONE，报告中的 Verification Result 保留 PARTIAL 或 MANUAL_VERIFICATION_REQUIRED；这些 token 不得写入 status。人工确认若是当前任务明确要求的完成门禁，未确认前不得 DONE。
 受阻或执行/验证失败时分别更新为 BLOCKED 或 FAILED，记录原因与恢复条件，不标记 DONE。
+上下文风险上升先限制读取/输出与分阶段验证；优化后仍有可信实际容量/剩余工作不足证据时，保存 Checkpoint 和 Split Request，置 BLOCKED，报告 blocker_code: CONTEXT_BUDGET_EXCEEDED 并停止。不因估值超自定门槛阻塞，不创建子任务或启动 Worker。
 仅可修改本任务文档的 status、执行报告与产物引用，不改写任务契约。
 完成本任务后输出交接报告并停止；不要修改全局 DAG 清单或启动后续任务。
 ```
@@ -59,6 +61,10 @@ Execute DAG Task:
 
 Read the task first and follow applicable repository instructions.
 Read DAG.md and CONTEXT.md from the same DAG directory only when required.
+Adapt the Context Loading Plan within the existing scope and acceptance.
+Respect verified model/host limits and explicit resource constraints. Unknown
+telemetry calls for selective loading and checkpoints, not automatic blocking;
+legacy estimated thresholds are advisory without binding provenance.
 Read declared dependency outputs before implementation.
 Verify the task revision and dependency artifacts on your working baseline.
 Strictly follow Write Scope, Constraints, Forbidden Changes,
@@ -79,6 +85,11 @@ keep PARTIAL or MANUAL_VERIFICATION_REQUIRED in the report's Verification
 Result, never in status. If manual confirmation is an explicit completion
 gate for this task, do not set DONE before it is satisfied. Record BLOCKED or
 FAILED as applicable, with the reason and recovery conditions.
+If supported real-capacity/remaining-work evidence still shows insufficiency
+after reasonable loading/output optimization, persist a Checkpoint and
+structured Split Request under Expected Outputs, set BLOCKED,
+report blocker_code: CONTEXT_BUDGET_EXCEEDED, and stop. Do not split contracts
+or start child Workers yourself.
 Only maintain this task's status, execution report and artifact references;
 do not rewrite its contract or edit the shared DAG manifest.
 Report changed files, results, risks, blockers and integration notes, then stop.
@@ -101,6 +112,91 @@ worktree 仅隔离文件编辑，不消除语义冲突、共享服务或迁移�
 执行者将修改文件、实现摘要、验证结果、剩余风险、blockers、集成说明和产物定位持久化到自身 Task 的 Expected Outputs；已有 commit 时附 hash。research 任务另行落盘声明的独立结论文件，此处只保留摘要和链接。产物和必要验证完成后才进入 DONE；下游不能只依据聊天声明启动。
 
 外部协调者获取依赖的代码、状态和报告，形成包含全部必要产物的下游基线。隔离 worktree 的交接包含任务状态、报告和 research 结论；报告存储协议由任务契约统一指定，不额外维护重复报告。
+
+# Context Budget Blocker and Split Request
+
+以下供未来 Worker 使用，不授权 Planner 执行。沿用 BLOCKED 与报告 blocker_code，不新增状态或强制 results/。只有合理优化后仍有充分真实容量/剩余工作不足证据时，才在自身 Expected Outputs 追加 Split Request 并停止交接；旧估值超自定门槛不构成证据。没有可靠数字时三个 Token 观察字段均可缺省或 null，保留定性原因、宿主证据、已尝试优化和完整 Checkpoint；不捏造测量。判定见 [context-planning.md](context-planning.md#adaptive-decision-and-runtime-observation)。
+
+```yaml
+blocker_code: CONTEXT_BUDGET_EXCEEDED
+task_id: T002
+dag_revision: 3
+reason: "假设示例：已优化读取和验证，宿主仍回报本 Session 无法继续；保存原任务结果后交接。"
+context_observation:
+  current_peak_tokens: null
+  projected_peak_tokens: null
+  remaining_work_tokens: null
+  capacity_signal:
+    source: host
+    confidence: verified
+    code: CONTEXT_EXHAUSTED
+    evidence: "假设 fixture 的宿主返回当前 Session 容量不足；非真实仓库执行记录。"
+  optimization_attempts: ["已选择必要符号/接口并缩减工具输出，未省略验收和交付"]
+  evidence: "无数值遥测；容量故障和剩余验收有可定位证据，不能仅靠估值判定。"
+attempted_reductions:
+  - "已改为按符号读取，测试仅保留失败摘要和退出码。"
+checkpoint:
+  baseline: "可获取的工作树快照标识 snapshot-example-r3"
+  artifacts:
+    - location: "snapshot:snapshot-example-r3/cache-contract.patch"
+      verification: "接口静态检查通过；整体验收尚未完成。"
+  completed_acceptance: ["AC1：接口签名及失败行为已冻结"]
+  pending_acceptance: ["AC2：客户端缓存行为", "AC3：服务端缓存行为及集成"]
+  resume_notes: "保留接口修改与失败测试；恢复时核对快照、revision 和尚未通过的项，不能当作完整依赖产物。"
+proposed_split:
+  - key: client
+    goal: "客户端缓存行为可独立验收"
+    depends_on: []
+    read_scope: [src/contracts/cache.ts, src/client/cache.ts]
+    write_scope: [src/client/cache.ts, tests/client/cache.test.ts]
+    outputs: [client_cache]
+    acceptance_criteria: ["AC2：客户端缓存行为"]
+  - key: server
+    goal: "服务端缓存与客户端接口集成可验收"
+    depends_on: [client]
+    read_scope: [src/contracts/cache.ts, src/server/cache.ts]
+    write_scope: [src/server/cache.ts, tests/cache.integration.ts]
+    outputs: [integrated_cache]
+    acceptance_criteria: ["AC3：服务端缓存行为及集成"]
+```
+
+字段仍绑定当前 Task 与提交 revision；Token 有值时须为合法范围，未知合法，evidence/原因与优化不得缺失。completed_acceptance 可空、pending_acceptance 非空；artifacts 可空但说明重建/恢复方式。proposed_split 是建议，非正式 Task，不分配 ID；无合理边界可为空并说明原因。非空时局部 key 唯一、依赖存在无环、有目标/范围/输出/验收。旧版数字观察及报告继续可读；不因旧报告触发依据不足而回写其历史状态，恢复时按当前证据重新核对。
+
+Checkpoint 只引用当前 write_scope 中已允许写入/已有可获取的产物，或由外部协调者保存的快照；不借此授权新增任意文件、commit、worktree 或外部存储。报告记录已完成/未完成验收、验证证据和下一步位置，不包含密钥或完整日志。BLOCKED 的部分产物不是 DONE 依赖；若复用，须冻结可获取的快照并显式声明外部输入 `source`/`location` 及来源 Task/revision，不建立指向 BLOCKED/SUPERSEDED 的可执行依赖。
+
+Worker 只维护自身 status/报告/产物引用；不改 scope、依赖、验收或兄弟任务。宿主只读时交 Coordinator 持久化，不能声称 Checkpoint 已保存。恢复须核对当前 revision、基线、产物和真实容量，并由 Coordinator 确认原 blocker 解除/重新判定 READY；只有需要变更契约时才要求 Planner 修订，也可保留同一 Task 交接新 Session，不是发送请求后自动继续。
+
+# Planner Split Resolution
+
+1. Planner 读取原 DAG、请求任务、Checkpoint 与相关产物，核对提交 revision 与当前契约。重复请求先核对已有 Resolution；过时请求须重审差异，不能直接重放或分配第二批重复 ID。
+2. 请求任务保持 BLOCKED；受影响 IN_PROGRESS 后继交给 Coordinator 停止并持久化交接。未获得停止确认前只记录 pending 修订，不改运行中的契约，也不把它们改回 PLANNED。Coordinator 串行同步真实状态，Planner 不冒充协调者。
+3. 沿用原目录与所有历史 ID、产物和报告，按 [Recursive Decomposition](context-planning.md#recursive-decomposition) 优化/拆分并分配历史最大编号后的新 ID，子任务为 PLANNED。将每项原验收（包括已完成项）映射到负责的新任务/复核节点，重新估算子任务与集成节点。
+4. 可保留原 Task 作为剩余实现/最终验收节点（保持 BLOCKED，依赖新增产物，子任务不能反向依赖原节点）；或在 Coordinator 确认交接后，将未完成的原 Task 标为 SUPERSEDED 并保留原契约和报告。DONE 不改写/废弃，新增修复任务承接新要求。SUPERSEDED 不等于完成，其下游改为依赖实际生产者，更新 inputs/output/location 与验收证据。
+5. 在原 Task 的 Expected Outputs 追加 `### Split Resolution` YAML，保留已有报告内容；同时递增 DAG revision，在 Change Log 记录请求、Checkpoint、验收映射和受影响后继。修订图、索引、CONTEXT、并行组、关键路径与集成计划。READY 后继受影响时取消 READY；已运行/完成的真实状态不得重置。
+6. 运行只读校验并对比修订前快照；Planner 交付修订和待协调事项后停止。恢复/路由/启动子任务仍由外部执行系统负责。
+
+结构化 Resolution 示例（映射文字必须使用原 `acceptance_criteria` 的完整条目；示例任务 ID 由 Planner 分配）：
+
+```yaml
+request_revision: 3
+applied_revision: 4
+coordinator_ack: "handoff-example-r3：Coordinator 已保存 Checkpoint，确认原 Worker 停止"
+replacement_tasks: [T011, T012]
+checkpoint_refs: ["snapshot:snapshot-example-r3/cache-contract.patch"]
+acceptance_mapping:
+  - original: "AC1：接口签名及失败行为已冻结"
+    covered_by: [T011]
+  - original: "AC2：客户端缓存行为"
+    covered_by: [T011]
+  - original: "AC3：服务端缓存行为及集成"
+    covered_by: [T012]
+```
+
+Resolution 是审计报告，不替代子任务 front matter SSOT。`replacement_tasks` 包含本次拆分/复核节点；保留原节点时可在 covered_by 引用原 ID，至少一项由新节点负责。checkpoint_refs 覆盖请求中所有 artifact 的 location（没有 artifact 时用 baseline 标识）；applied_revision 必须晚于 request_revision 且不晚于当前 revision。自动校验只验证声明与关联，Coordinator 确认、快照可用性及验收语义必须人工/外部复核。
+
+同一 Task 再次受阻时按新提交 revision 追加新的 Split Request，不覆盖旧报告；校验器取最新 Request 及匹配的最新 Resolution，早于该 Request 的 Resolution 只作为历史记录。一次已应用的请求不得重复分配任务；过时请求重新核对后，由 Worker/Coordinator 持久化当前版本请求再应用。普通的非上下文任务废弃继续遵守既有 DAG Update Rules，不强迫伪造 Context Split Request。
+
+同一 Task 仅换 Session 恢复时，不强制拆图或虚构替代节点。保留 Request/Checkpoint，在后续 Execution Report 记录 recovery.from_checkpoint（原 baseline）、recovery.coordinator_ack（停止原执行者且解除 blocker）、当前 Task/revision/status/run_id、最新 context_observation 与 blockers。匹配的 Resolution 或该完整恢复证据可使 Request 保留为历史；未解除的请求仍须 BLOCKED，不能只改状态掩盖。Planner 不把 Worker 的合法执行状态更新当作自身重规划操作。
 
 # Integration Strategy
 

@@ -116,8 +116,6 @@ DAG front matter 的 status 允许 DRAFT、CONFIRMED、IN_PROGRESS、BLOCKED、D
 
 CONTEXT 保存共享扩展信息；Task 自身必须保留最小可执行背景、Goal、Scope 和 Acceptance Criteria，不能只写“见 CONTEXT”或“按之前讨论实现”。使用以下结构：
 
-需要共享策略时，在 CONTEXT 记录 Adaptive Context Management（旧 Context Budget Policy 章节保留可读）：实际模型/宿主能力来源、未知项、可靠估算方法、压缩/Checkpoint 能力及动态载入原则。Task 的可选 context_management/旧 context_budget 及动态 Loading Plan 是执行契约；不得给所有 Task 注入固定门槛或强制数值。示例与兼容见 [context-planning.md](context-planning.md)，不迁移旧 DAG 或重置状态。
-
 ```markdown
 # Project Context
 项目类型、平台、实际工具链和调查基线。
@@ -164,8 +162,6 @@ Parallel Execution Plan、Critical Path、Integration Strategy、Risks、Definit
 每次影响执行的修订递增 DAG `revision`，记录原因、Added、Changed、Superseded 和 Parallel Group Changes，指出受影响 Task 与需要重新确认的产物。
 
 记录任务、依赖、范围、架构、验收、执行模式和并行度变化，不为纯文字润色或重复状态同步增加执行修订。执行交接中的 revision 核对见 [execution-protocol.md](execution-protocol.md#status-lifecycle)。
-
-上下文拆分也在原 DAG 内递增 revision，记录 Split Request 所在 Task/提交 revision、Coordinator 停止交接确认、Checkpoint/已有产物引用、Added/Changed/Superseded、原验收项到新任务的映射、受影响后继闭包、依赖/并行组/关键路径/集成策略的变化。不得覆写历史验证证据或把完成结果当作未执行。未停稳的 IN_PROGRESS 任务保留当前契约，将建议修订记为 pending，不能声称修订已应用；结构化 Split Resolution 见 [execution-protocol.md](execution-protocol.md#planner-split-resolution)。
 
 # Examples
 

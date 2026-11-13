@@ -1,0 +1,3 @@
+interface:
+  display_name: "PRD 工程化转换"
+  short_description: "将策划 PRD 转为可追溯、可验收的工程需求，保留 TBD 与决策边界"

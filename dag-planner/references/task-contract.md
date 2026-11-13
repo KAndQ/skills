@@ -35,22 +35,12 @@ Task status 允许 PLANNED、READY、BLOCKED、IN_PROGRESS、DONE、FAILED、SUP
 | `outputs` | 具名输出数组；写明 `name`、`location`、`contract` |
 | `acceptance_criteria`, `verification` | 可观察标准与具体验证步骤数组；按 [Validation Task Contract](#validation-task-contract) 区分自动化与人工项 |
 | `risks`, `forbidden_changes` | 字符串数组，明确无内容时为 `[]` |
-| `context_management`（可选） | 自适应成本/风险、可信约束与可选 assessment；允许未知及定性估算，见 [Adaptive Context Schema](context-planning.md#adaptive-context-schema) |
-| `context_budget`（可选） | 旧数值格式继续可读，缺省合法；无可信 provenance 的值仅为提示，见 [Context Budget Schema](context-planning.md#context-budget-schema) |
 
 发生隔离并行的预计冲突时补充 `merge_conflict_risk: expected` 和负责的 `integration_task`。无需默认添加无用途的字段。
-
-两个 Context 字段均可选，新建/重规划也不要求数值或迁移旧 Task。必要成本/未知项可写入正文 Loading Plan；Task 的显式约束仍是 SSOT，CONTEXT 只解释共享策略。运行时容量观察写入报告，不赋予 Worker 改契约/状态历史的权限。
 
 角色按能力选择，如 repository-researcher、architect、typescript-implementer、cocos-implementer、backend-implementer、test-agent、performance-agent、review-agent、integration-agent；不绑定模型，不宣称角色对应已安装 Agent。reasoning_requirement 对简单定向调查可用 low，常规实现 medium，架构、复杂兼容和高耦合实现 high；它是给外部调度器的建议。
 
 并行任务必须分析 write_scope 与 shared side effects；分析原则见 [SKILL.md](../SKILL.md#parallel--write-scope-conflict-analysis)。execution_mode 的详细含义见 [execution-protocol.md](execution-protocol.md#execution-modes)；选取或修订模式时必须读取该节。
-
-# Context Loading Plan
-
-新建/实质重规划时按风险在 Read Scope 后提供动态策略；旧契约缺省仍有效。列明必读指令/完整 Task、依赖版本与证据、优先符号、扩读触发条件、工具输出选读、保留结论及 Checkpoint 风险条件。数值只在有依据时提供，不是固定分配表；片段定位失效先搜索符号。
-
-Worker 可在原 read_scope/write_scope、验收与其他契约内调整实际读取顺序/片段并在报告记录，不修改 Task。不能省略安全指令、依赖证据或验收。Task 自包含、共享资料按需读；六类分析及真实容量判定见 [context-planning.md](context-planning.md)。
 
 # Research Task Contract
 
@@ -156,9 +146,6 @@ forbidden_changes:
 # Read Scope
 列出优先读取的文件、符号和上下文小节，路径基准为 repository root。
 
-# Context Loading Plan
-填入必读指令、依赖版本、源码符号、扩读/Checkpoint 风险条件、工具输出选读和保留证据；不强制数字分配或 context_budget。需要结构化记录时可用 context_management；生成时展开策略，不能保留本组装说明。
-
 # Write Scope
 说明允许新增、修改或删除的具体路径；包含相关测试、元数据及工具会改写的文件。必须列出本任务文档，并限定为 status、执行报告与产物引用维护；research 任务还须列出结论文件，不能授权写入整个 tasks/ 或 research/ 目录。
 
@@ -180,7 +167,6 @@ forbidden_changes:
 # Expected Outputs
 定义具名产物及交接位置。完成报告必须包括：修改文件、实现摘要、验证结果、剩余风险、blockers 和集成说明；已有 commit 时附 hash，不要求为报告强制提交。
 由执行者在此小节持久化报告和产物引用，供后续 Task 读取。research 的完整结论存放在声明的独立文件，此处只记录交接摘要及链接，不维护两份完整结论。将产物落盘、验证与自动更新本任务 status 纳入完成条件。
-上下文不足时在本节追加 Checkpoint 与结构化 Split Request，沿用 BLOCKED；blocker_code 是报告字段，不新增 status。字段、恢复条件与 Planner Split Resolution 见 execution-protocol.md，生成时展开适用内容，不让 Worker 依赖技能文件。
 
 # Risks
 指出具体风险及需要报告的条件。
